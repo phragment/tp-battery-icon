@@ -26,6 +26,8 @@ global sysfs
 sysfs = "/sys/devices/platform/smapi"
 global iconpath
 iconpath = "/usr/share/pixmaps/tp-battery-icons/"
+global iconname
+iconname = "/usr/share/pixmaps/tp-battery-icon.svg"
 
 def read_sysfs(path):
     try:
@@ -132,6 +134,7 @@ class TrayIcon():
 
     def __init__(self):
         self.icon = Gtk.StatusIcon()
+        #self.icon.connect("activate", self.on_popup_menu)
         self.icon.connect("popup-menu", self.on_popup_menu)
 
     def get_menu(self):
@@ -160,22 +163,30 @@ class TrayIcon():
         if state != "none":
 
             start = Gtk.MenuItem("Start Threshold " + str(ctrl.get_threshold_start()) + "%")
-            start.connect("activate", self.show_input_dialog, "Set Start Threshold", "new threshold:", ctrl.set_threshold_start)
+            start.connect("activate", self.show_input_dialog,
+                          "Start Threshold", "Set new <b>start</b> threshold:",
+                          ctrl.set_threshold_start, iconpath + "empty.svg", str(ctrl.get_threshold_start()))
             self.menu.append(start)
 
             stop = Gtk.MenuItem("Stop Threshold " + str(ctrl.get_threshold_stop()) + "%")
-            stop.connect("activate", self.show_input_dialog, "Set Stop Threshold", "new threshold:", ctrl.set_threshold_stop)
+            stop.connect("activate", self.show_input_dialog,
+                         "Stop Threshold", "Set new <b>stop</b> threshold:",
+                         ctrl.set_threshold_stop, iconpath + "full.svg", str(ctrl.get_threshold_stop()))
             self.menu.append(stop)
 
             sep2 = Gtk.SeparatorMenuItem()
             self.menu.append(sep2)
 
             charge = Gtk.MenuItem("Start Charge")
-            charge.connect("activate", self.show_confirmation_dialog, "confirm", "start charging?", ctrl.start_charge)
+            charge.connect("activate", self.show_confirmation_dialog,
+                           "Confirm Charge", "Start charging?",
+                           ctrl.start_charge, iconpath + "charging-empty.svg")
             self.menu.append(charge)
 
             cycle = Gtk.MenuItem("Start Cycle")
-            cycle.connect("activate", self.show_confirmation_dialog, "confirm", "start cycle?", ctrl.start_cycle)
+            cycle.connect("activate", self.show_confirmation_dialog,
+                          "Confirm Cycle", "Start cycling?",
+                          ctrl.start_cycle, iconpath + "charging-full.svg")
             self.menu.append(cycle)
 
             sep3 = Gtk.SeparatorMenuItem()
@@ -221,6 +232,19 @@ class TrayIcon():
 
         icon.icon.set_from_file(foo)
 
+
+        if state == "none":
+            title = bat + " not installed"
+        else:
+            title = bat + " " + str(ctrl.get_percent()) + "% " + state
+
+        if state == "charging":
+            title += " " + ctrl.get_time_charging()
+        if state == "discharging":
+            title += " " + ctrl.get_time_running()
+
+        icon.icon.set_tooltip_text(title)
+
     def set_threshold_start(self, widget, foo):
         thresh = int(widget.get_text())
         if (thresh < 0) or (thresh > 100):
@@ -233,15 +257,36 @@ class TrayIcon():
             return
         ctrl.set_threshold_stop(thresh)
 
-    def show_input_dialog(self, widget, title, question, function):
-        dialog = Gtk.Dialog(title, None, 0, (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OK, Gtk.ResponseType.OK))
-        #dialog.set_size_request(250, 100)
+    def respond(self, entry, dialog, response):
+        dialog.response(response)
 
-        label = Gtk.Label(question)
-        dialog.vbox.pack_start(label, True, True, 0)
+    def show_input_dialog(self, widget, title, question, function, imagename, answer=""):
+        dialog = Gtk.Dialog(title, None, 0, (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OK, Gtk.ResponseType.OK))
+        #dialog = Gtk.Dialog(title, None, 0)
+        dialog.set_icon_from_file(iconname)
+
+        hbox = Gtk.HBox()
+        dialog.vbox.pack_start(hbox, True, True, 0)
+
+        image = Gtk.Image()
+        image.set_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_size(imagename, 50, 50))
+        image.set_padding(10, 10)
+        hbox.pack_start(image, False, False, 0)
+
+        vbox = Gtk.VBox()
+        hbox.pack_start(vbox, True, True, 0)
+
+        label = Gtk.Label()
+        label.set_markup(question)
+        label.set_justify(Gtk.Justification.LEFT)
+        label.set_padding(10, 10)
+        vbox.pack_start(label, False, False, 0)
 
         dialog_entry = Gtk.Entry()
-        dialog.vbox.pack_start(dialog_entry, False, False, 0)
+        dialog_entry.connect("activate", self.respond, dialog, Gtk.ResponseType.OK)
+        if answer:
+            dialog_entry.set_text(answer)
+        vbox.pack_start(dialog_entry, False, False, 0)
         dialog.show_all()
 
         response = dialog.run()
@@ -251,12 +296,23 @@ class TrayIcon():
 
         dialog.destroy()
 
-    def show_confirmation_dialog(self, widget, title, question, function):
+    def show_confirmation_dialog(self, widget, title, question, function, imagename):
         dialog = Gtk.Dialog(title, None, 0, (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OK, Gtk.ResponseType.OK))
+        dialog.set_icon_from_file(iconname)
 
-        label = Gtk.Label(question)
-        box = dialog.get_content_area()
-        box.add(label)
+        hbox = Gtk.HBox()
+        dialog.vbox.pack_start(hbox, True, True, 0)
+
+        image = Gtk.Image()
+        image.set_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_size(imagename, 50, 50))
+        image.set_padding(10, 10)
+        hbox.pack_start(image, False, False, 0)
+
+        label = Gtk.Label()
+        label.set_markup(question)
+        label.set_justify(Gtk.Justification.LEFT)
+        label.set_padding(10, 10)
+        hbox.add(label)
 
         dialog.show_all()
 
@@ -276,8 +332,9 @@ class TrayIcon():
         about_dialog.set_copyright("Copyright © 2012 Thomas Krug")
         about_dialog.set_website("https://github.com/phragment/tp-battery-icon")
         about_dialog.set_website_label("github.com/phragment/tp-battery-icon")
+        about_dialog.set_icon_from_file(iconname)
 
-        about_dialog.set_logo(GdkPixbuf.Pixbuf.new_from_file_at_size("/usr/share/pixmaps/tp-battery-icon.svg", 200, 200))
+        about_dialog.set_logo(GdkPixbuf.Pixbuf.new_from_file_at_size(iconname, 200, 200))
 
         about_dialog.run()
         about_dialog.destroy()
