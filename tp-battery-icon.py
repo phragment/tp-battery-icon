@@ -57,20 +57,18 @@ def write_sysfs(path, value):
 class Control():
 
     def set_threshold_start(self, thresh):
-        if (thresh < 0) or (thresh > 100):
-            return
-        if debug:
-            print("setting start charge threshold to", thresh)
-        else:
-            write_sysfs("start_charge_thresh", thresh)
+        if 0 <= thresh <= 100:
+            if debug:
+                print("setting start charge threshold to", thresh)
+            else:
+                write_sysfs("start_charge_thresh", thresh)
 
     def set_threshold_stop(self, thresh):
-        if (thresh < 0) or (thresh > 100):
-            return
-        if debug:
-            print("setting stop charge threshold to", thresh)
-        else:
-            write_sysfs("stop_charge_thresh", thresh)
+        if 0 <= thresh <= 100:
+            if debug:
+                print("setting stop charge threshold to", thresh)
+            else:
+                write_sysfs("stop_charge_thresh", thresh)
 
     def start_charge(self, widget=None):
         if debug:
@@ -124,10 +122,7 @@ class Control():
 
     def check_installed(self):
         present = read_sysfs("installed")
-        if int(present) == 1:
-            return True
-        else:
-            return False
+        return int(present) == 1
 
 class TrayIcon():
 
@@ -249,15 +244,13 @@ class TrayIcon():
 
     def set_threshold_start(self, widget, foo):
         thresh = int(widget.get_text())
-        if (thresh < 0) or (thresh > 100):
-            return
-        ctrl.set_threshold_start(thresh)
+        if 0 <= thresh <= 100:
+            ctrl.set_threshold_start(thresh)
 
     def set_threshold_stop(self, widget, foo):
         thresh = int(widget.get_text())
-        if (thresh < 0) or (thresh > 100):
-            return
-        ctrl.set_threshold_stop(thresh)
+        if 0 <= thresh <= 100:
+            ctrl.set_threshold_stop(thresh)
 
     def respond(self, entry, dialog, response):
         dialog.response(response)
@@ -378,4 +371,3 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
         loop.quit()
-
