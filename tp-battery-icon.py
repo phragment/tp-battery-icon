@@ -40,10 +40,9 @@ def read_sysfs(path):
         node_path = os.path.join(sysfs, bat, path)
         with open(node_path, "r") as node:
             result = node.readline()
+        return result
     except IOError:
         print("error reading from", node_path)
-        return
-    return result
 
 def write_sysfs(path, value):
     try:
@@ -52,7 +51,6 @@ def write_sysfs(path, value):
             node.write(str(value))
     except IOError:
         print("error writing to", node_path)
-        return
 
 class Control():
 
@@ -92,11 +90,8 @@ class Control():
         return int(thresh)
 
     def get_state(self):
-        """
-        idle, discharging, charging, none
-        """
-        state = read_sysfs("state")
-        return state.rstrip()
+        """return values: idle, discharging, charging, none"""
+        return read_sysfs("state").rstrip()
 
     def get_percent(self):
         percent = read_sysfs("remaining_percent")
@@ -125,7 +120,6 @@ class Control():
         return int(present) == 1
 
 class TrayIcon():
-
     icon = None
     menu = None
 
@@ -346,14 +340,8 @@ if __name__ == "__main__":
     global bat
 
     parser = optparse.OptionParser()
-
-    parser.add_option("-d", "--debug",
-                      action="store_true", dest="debug", default=False,
-                      help="TODO")
-    parser.add_option("-b", "--battery",
-                      action="store", dest="bat", default="BAT0",
-                      help="TODO")
-
+    parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False, help="print debug output")
+    parser.add_option("-b", "--battery", action="store", dest="bat", default="BAT0", help="set the battery to observe.")
     (options, args) = parser.parse_args()
 
     debug = options.debug
