@@ -16,6 +16,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# TODO
+# - tooltip
+
 import optparse
 
 import gi
@@ -52,11 +55,7 @@ def write_sysfs(path, value):
 
 class Control():
 
-    def set_threshold_start(self, widget):
-        input = widget.get_text()
-        if not input:
-            return
-        thresh = int(input)
+    def set_threshold_start(self, thresh):
         if (thresh < 0) or (thresh > 100):
             return
         if debug:
@@ -64,11 +63,7 @@ class Control():
         else:
             write_sysfs("start_charge_thresh", thresh)
 
-    def set_threshold_stop(self, widget):
-        input = widget.get_text()
-        if not input:
-            return
-        thresh = int(input)
+    def set_threshold_stop(self, thresh):
         if (thresh < 0) or (thresh > 100):
             return
         if debug:
@@ -110,15 +105,21 @@ class Control():
 
     def get_time_running(self):
         time = read_sysfs("remaining_running_time")
-        hh = str(int(time) / 60).split('.')[0]
-        mm = str(int(time) % 60).split('.')[0].zfill(2)
-        return hh + ":" + mm
+        try:
+            hh = str(int(time) / 60).split('.')[0]
+            mm = str(int(time) % 60).split('.')[0].zfill(2)
+            return hh + ":" + mm
+        except ValueError:
+            return "--:--"
 
     def get_time_charging(self):
         time = read_sysfs("remaining_charging_time")
-        hh = str(int(time) / 60).split('.')[0]
-        mm = str(int(time) % 60).split('.')[0].zfill(2)
-        return hh + ":" + mm
+        try:
+            hh = str(int(time) / 60).split('.')[0]
+            mm = str(int(time) % 60).split('.')[0].zfill(2)
+            return hh + ":" + mm
+        except ValueError:
+            return "--:--"
 
     def check_installed(self):
         present = read_sysfs("installed")
@@ -165,13 +166,13 @@ class TrayIcon():
             start = Gtk.MenuItem("Start Threshold " + str(ctrl.get_threshold_start()) + "%")
             start.connect("activate", self.show_input_dialog,
                           "Start Threshold", "Set new <b>start</b> threshold:",
-                          ctrl.set_threshold_start, iconpath + "empty.svg", str(ctrl.get_threshold_start()))
+                          self.set_threshold_start, iconpath + "empty.svg", str(ctrl.get_threshold_start()))
             self.menu.append(start)
 
             stop = Gtk.MenuItem("Stop Threshold " + str(ctrl.get_threshold_stop()) + "%")
             stop.connect("activate", self.show_input_dialog,
                          "Stop Threshold", "Set new <b>stop</b> threshold:",
-                         ctrl.set_threshold_stop, iconpath + "full.svg", str(ctrl.get_threshold_stop()))
+                         self.set_threshold_stop, iconpath + "full.svg", str(ctrl.get_threshold_stop()))
             self.menu.append(stop)
 
             sep2 = Gtk.SeparatorMenuItem()
