@@ -20,6 +20,7 @@
 # - tooltip
 
 import optparse
+import os
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -27,17 +28,18 @@ from gi.repository import Gtk, GObject, GdkPixbuf
 
 global sysfs
 sysfs = "/sys/devices/platform/smapi"
+
 global iconpath
 iconpath = "/usr/share/pixmaps/tp-battery-icons/"
+
 global iconname
 iconname = "/usr/share/pixmaps/tp-battery-icon.svg"
 
 def read_sysfs(path):
     try:
-        node_path = sysfs + "/" + bat + "/" + path
-        node = open(node_path, "r")
-        result = node.readline()
-        node.close()
+        node_path = os.path.join(sysfs, bat, path)
+        with open(node_path, "r") as node:
+            result = node.readline()
     except IOError:
         print("error reading from", node_path)
         return
@@ -45,10 +47,9 @@ def read_sysfs(path):
 
 def write_sysfs(path, value):
     try:
-        node_path = sysfs + "/" + bat + "/" + path
-        node = open(node_path, "w+")
-        node.write(str(value))
-        node.close()
+        node_path = os.path.join(sysfs, bat, path)
+        with open(node_path, "w+") as node:
+            node.write(str(value))
     except IOError:
         print("error writing to", node_path)
         return
