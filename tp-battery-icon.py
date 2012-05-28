@@ -20,6 +20,7 @@
 # - tooltip
 
 import optparse
+import os
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -27,49 +28,45 @@ from gi.repository import Gtk, GObject, GdkPixbuf
 
 global sysfs
 sysfs = "/sys/devices/platform/smapi"
+
 global iconpath
 iconpath = "/usr/share/pixmaps/tp-battery-icons/"
+
 global iconname
 iconname = "/usr/share/pixmaps/tp-battery-icon.svg"
 
 def read_sysfs(path):
     try:
-        node_path = sysfs + "/" + bat + "/" + path
-        node = open(node_path, "r")
-        result = node.readline()
-        node.close()
+        node_path = os.path.join(sysfs, bat, path)
+        with open(node_path, "r") as node:
+            result = node.readline()
+        return result
     except IOError:
         print("error reading from", node_path)
-        return
-    return result
 
 def write_sysfs(path, value):
     try:
-        node_path = sysfs + "/" + bat + "/" + path
-        node = open(node_path, "w+")
-        node.write(str(value))
-        node.close()
+        node_path = os.path.join(sysfs, bat, path)
+        with open(node_path, "w+") as node:
+            node.write(str(value))
     except IOError:
         print("error writing to", node_path)
-        return
 
 class Control():
 
     def set_threshold_start(self, thresh):
-        if (thresh < 0) or (thresh > 100):
-            return
-        if debug:
-            print("setting start charge threshold to", thresh)
-        else:
-            write_sysfs("start_charge_thresh", thresh)
+        if 0 <= thresh <= 100:
+            if debug:
+                print("setting start charge threshold to", thresh)
+            else:
+                write_sysfs("start_charge_thresh", thresh)
 
     def set_threshold_stop(self, thresh):
-        if (thresh < 0) or (thresh > 100):
-            return
-        if debug:
-            print("setting stop charge threshold to", thresh)
-        else:
-            write_sysfs("stop_charge_thresh", thresh)
+        if 0 <= thresh <= 100:
+            if debug:
+                print("setting stop charge threshold to", thresh)
+            else:
+                write_sysfs("stop_charge_thresh", thresh)
 
     def start_charge(self, widget=None):
         if debug:
@@ -93,11 +90,8 @@ class Control():
         return int(thresh)
 
     def get_state(self):
-        """
-        idle, discharging, charging, none
-        """
-        state = read_sysfs("state")
-        return state.rstrip()
+        """return values: idle, discharging, charging, none"""
+        return read_sysfs("state").rstrip()
 
     def get_percent(self):
         percent = read_sysfs("remaining_percent")
@@ -123,13 +117,9 @@ class Control():
 
     def check_installed(self):
         present = read_sysfs("installed")
-        if int(present) == 1:
-            return True
-        else:
-            return False
+        return int(present) == 1
 
 class TrayIcon():
-
     icon = None
     menu = None
 
@@ -248,15 +238,13 @@ class TrayIcon():
 
     def set_threshold_start(self, widget, foo):
         thresh = int(widget.get_text())
-        if (thresh < 0) or (thresh > 100):
-            return
-        ctrl.set_threshold_start(thresh)
+        if 0 <= thresh <= 100:
+            ctrl.set_threshold_start(thresh)
 
     def set_threshold_stop(self, widget, foo):
         thresh = int(widget.get_text())
-        if (thresh < 0) or (thresh > 100):
-            return
-        ctrl.set_threshold_stop(thresh)
+        if 0 <= thresh <= 100:
+            ctrl.set_threshold_stop(thresh)
 
     def respond(self, entry, dialog, response):
         dialog.response(response)
@@ -352,14 +340,8 @@ if __name__ == "__main__":
     global bat
 
     parser = optparse.OptionParser()
-
-    parser.add_option("-d", "--debug",
-                      action="store_true", dest="debug", default=False,
-                      help="TODO")
-    parser.add_option("-b", "--battery",
-                      action="store", dest="bat", default="BAT0",
-                      help="TODO")
-
+    parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False, help="print debug output")
+    parser.add_option("-b", "--battery", action="store", dest="bat", default="BAT0", help="set the battery to observe.")
     (options, args) = parser.parse_args()
 
     debug = options.debug
@@ -377,4 +359,3 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
         loop.quit()
-
