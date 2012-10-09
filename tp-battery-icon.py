@@ -21,6 +21,7 @@
 
 import optparse
 import os
+import subprocess
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -52,6 +53,23 @@ def write_sysfs(path, value):
     except IOError:
         print("error writing to", node_path)
 
+def read_acpi(param):
+    try:
+        cmd = ["tpacpi-bat", param, "1"] #TODO: convert bat0=1 bat1=2, both=0
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        result = process.stdout.read()
+        return result
+    except:
+        print("error reading parameter ", param, ", check if acpi_call is installed and supported on your device!")
+
+def write_acpi(param, value):
+    try:
+        cmd = ["tpacpi-bat", param, "1", str(value)] #TODO: convert bat0=1 bat1=2, both=0
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    except:
+        print("error setting parameter ", param, ", check if acpi_call is installed and supported on your device!")
+
+
 class Control():
 
     def set_threshold_start(self, thresh):
@@ -59,14 +77,21 @@ class Control():
             if debug:
                 print("setting start charge threshold to", thresh)
             else:
-                write_sysfs("start_charge_thresh", thresh)
+                if acpi==False:
+                    write_sysfs("start_charge_thresh", thresh)
+                else:
+                    write_acpi("startChargeThreshold", thresh)
+
 
     def set_threshold_stop(self, thresh):
         if 0 <= thresh <= 100:
             if debug:
                 print("setting stop charge threshold to", thresh)
             else:
-                write_sysfs("stop_charge_thresh", thresh)
+                if acpi==False:
+                    write_sysfs("stop_charge_thresh", thresh)
+                else:
+                    write_acpi("stopChargeThreshold", thresh)
 
     def start_charge(self, widget=None):
         if debug:
@@ -79,15 +104,26 @@ class Control():
         if debug:
             print("starting cycle")
         else:
-            write_sysfs("force_discharge", 1)
+            if acpi==False:
+                write_sysfs("force_discharge", 1)
+            else:
+                write_acpi("forceDischarge", 1)
 
     def get_threshold_start(self):
-        thresh = read_sysfs("start_charge_thresh")
-        return int(thresh)
+        if acpi==False:
+            thresh = read_sysfs("start_charge_thresh")
+            return int(thresh)
+        else:
+            thresh = read_acpi("startChargeThreshold")
+            return int(thresh)
 
     def get_threshold_stop(self):
-        thresh = read_sysfs("stop_charge_thresh")
-        return int(thresh)
+        if acpi==False:
+            thresh = read_sysfs("stop_charge_thresh")
+            return int(thresh)
+        else:
+            thresh = read_acpi("stopChargeThreshold")
+            return int(thresh)
 
     def get_state(self):
         """return values: idle, discharging, charging, none"""
@@ -236,15 +272,21 @@ class TrayIcon():
 
         icon.icon.set_tooltip_text(title)
 
-    def set_threshold_start(self, widget, foo):
-        thresh = int(widget.get_text())
-        if 0 <= thresh <= 100:
-            ctrl.set_threshold_start(thresh)
+    def set_threshold_start(self, widget):
+        try:
+            thresh = int(widget.get_text())
+            if 0 <= thresh <= 100:
+                ctrl.set_threshold_start(thresh)
+        except ValueError:
+             print("Invalid value in dialog!") #TODO: use message dialog
 
-    def set_threshold_stop(self, widget, foo):
-        thresh = int(widget.get_text())
-        if 0 <= thresh <= 100:
-            ctrl.set_threshold_stop(thresh)
+    def set_threshold_stop(self, widget):
+        try:
+            thresh = int(widget.get_text())
+            if 0 <= thresh <= 100:
+                ctrl.set_threshold_stop(thresh)
+        except ValueError:
+             print("Invalid value in dialog!") #TODO: use message dialog
 
     def respond(self, entry, dialog, response):
         dialog.response(response)
@@ -338,14 +380,17 @@ if __name__ == "__main__":
     global ctrl
     global debug
     global bat
+    global acpi
 
     parser = optparse.OptionParser()
     parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False, help="print debug output")
     parser.add_option("-b", "--battery", action="store", dest="bat", default="BAT0", help="set the battery to observe.")
+    parser.add_option("-a", "--acpi", action="store", dest="acpi", default=False, help="set use of acpi over smapi for sandy/ivybridge TP.")
     (options, args) = parser.parse_args()
 
     debug = options.debug
     bat = options.bat
+    acpi = options.acpi
 
     try:
         loop = GObject.MainLoop(None, False)
