@@ -16,9 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO
-# - tooltip
-
+import sys
 import optparse
 import os
 import subprocess
@@ -27,141 +25,238 @@ import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject, GdkPixbuf
 
-global sysfs
-sysfs = "/sys/devices/platform/smapi"
+#-------------------------------------------------------------------------------
 
-global iconpath
-iconpath = "/usr/share/pixmaps/tp-battery-icons/"
+class ControlTPsmapi():
 
-global iconname
-iconname = "/usr/share/pixmaps/tp-battery-icon.svg"
+    def __init__(self):
 
-def read_sysfs(path):
-    try:
-        node_path = os.path.join(sysfs, bat, path)
-        with open(node_path, "r") as node:
-            result = node.readline()
-        return result
-    except IOError:
-        print("error reading from", node_path)
+        self.name = "tp_smapi"
 
-def write_sysfs(path, value):
-    try:
-        node_path = os.path.join(sysfs, bat, path)
-        with open(node_path, "w+") as node:
-            node.write(str(value))
-    except IOError:
-        print("error writing to", node_path)
+        self.bat = "BAT" + str(bat - 1)
+        self.sysfs = "/sys/devices/platform/smapi"
 
-def read_acpi(param):
-    try:
-        cmd = ["tpacpi-bat", param, "1"] #TODO: convert bat0=1 bat1=2, both=0
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-        result = process.stdout.read()
-        return result
-    except:
-        print("error reading parameter ", param, ", check if acpi_call is installed and supported on your device!")
-
-def write_acpi(param, value):
-    try:
-        cmd = ["tpacpi-bat", param, "1", str(value)] #TODO: convert bat0=1 bat1=2, both=0
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    except:
-        print("error setting parameter ", param, ", check if acpi_call is installed and supported on your device!")
+        # probe
+        try:
+            result = self.read_sysfs("installed")
+        except Exception:
+            raise Exception("SMAPI not supported")
 
 
-class Control():
+    def read_sysfs(self, path):
+        try:
+            node_path = os.path.join(self.sysfs, self.bat, path)
+            with open(node_path, "r") as node:
+                result = node.readline()
+            return result
+        except IOError:
+            raise Exception("error reading from", node_path)
 
-    def set_threshold_start(self, thresh):
-        if 0 <= thresh <= 100:
-            if debug:
-                print("setting start charge threshold to", thresh)
-            else:
-                if acpi==False:
-                    write_sysfs("start_charge_thresh", thresh)
-                else:
-                    write_acpi("startChargeThreshold", thresh)
+    def write_sysfs(self, path, value):
+        try:
+            node_path = os.path.join(self.sysfs, self.bat, path)
+            with open(node_path, "w+") as node:
+                node.write(str(value))
+        except IOError:
+            raise Exception("error writing to", node_path)
 
-
-    def set_threshold_stop(self, thresh):
-        if 0 <= thresh <= 100:
-            if debug:
-                print("setting stop charge threshold to", thresh)
-            else:
-                if acpi==False:
-                    write_sysfs("stop_charge_thresh", thresh)
-                else:
-                    write_acpi("stopChargeThreshold", thresh)
-
-    def start_charge(self, widget=None):
-        if debug:
-            print("starting charge")
-        else:
-            cur = self.get_percent()
-            self.set_threshold_start(cur + 1)
-
-    def start_cycle(self, widget=None):
-        if debug:
-            print("starting cycle")
-        else:
-            if acpi==False:
-                write_sysfs("force_discharge", 1)
-            else:
-                write_acpi("forceDischarge", 1)
-
-    def get_threshold_start(self):
-        if acpi==False:
-            thresh = read_sysfs("start_charge_thresh")
-            return int(thresh)
-        else:
-            thresh = read_acpi("startChargeThreshold")
-            return int(thresh)
-
-    def get_threshold_stop(self):
-        if acpi==False:
-            thresh = read_sysfs("stop_charge_thresh")
-            return int(thresh)
-        else:
-            thresh = read_acpi("stopChargeThreshold")
-            return int(thresh)
 
     def get_state(self):
         """return values: idle, discharging, charging, none"""
-        return read_sysfs("state").rstrip()
+        state = self.read_sysfs("state")
+        return state.rstrip()
 
-    def get_percent(self):
-        percent = read_sysfs("remaining_percent")
+    def get_percentage(self):
+        percent = self.read_sysfs("remaining_percent")
         return int(percent)
 
     def get_time_running(self):
-        time = read_sysfs("remaining_running_time")
-        try:
-            hh = str(int(time) / 60).split('.')[0]
-            mm = str(int(time) % 60).split('.')[0].zfill(2)
-            return hh + ":" + mm
-        except ValueError:
-            return "--:--"
+        time = self.read_sysfs("remaining_running_time")
+        return int(time)
 
     def get_time_charging(self):
-        time = read_sysfs("remaining_charging_time")
-        try:
-            hh = str(int(time) / 60).split('.')[0]
-            mm = str(int(time) % 60).split('.')[0].zfill(2)
-            return hh + ":" + mm
-        except ValueError:
-            return "--:--"
+        time = self.read_sysfs("remaining_charging_time")
+        return int(time)
 
-    def check_installed(self):
-        present = read_sysfs("installed")
-        return int(present) == 1
+    def get_start_threshold(self):
+        thresh = self.read_sysfs("start_charge_thresh")
+        return int(thresh)
 
-class TrayIcon():
-    icon = None
-    menu = None
+    def get_stop_threshold(self):
+        thresh = self.read_sysfs("stop_charge_thresh")
+        return int(thresh)
+
+    def set_start_threshold(self, threshold):
+        self.write_sysfs("start_charge_thresh", threshold)
+
+    def set_stop_threshold(self, threshold):
+        self.write_sysfs("stop_charge_thresh", threshold)
+
+    def start_charging(self):
+        cur = self.get_percentage()
+        self.set_start_threshold(cur + 1)
+
+    def start_cycle(self):
+        self.write_sysfs("force_discharge", 1)
+
+#-------------------------------------------------------------------------------
+
+class ControlTPacpi():
 
     def __init__(self):
+
+        self.name = "acpi_call"
+
+        self.bat = bat
+
+        # probe: read force discharge
+        param = hex(self.bat)
+        result = self.acpi_call("\_SB.PCI0.LPC.EC.HKEY.BDSG " + param)
+        if (result == "Error: AE_NOT_FOUND"):
+            raise Exception("unsupported ThinkPad model")
+
+        self.acpi = ControlACPI()
+
+    def acpi_call(self, value):
+
+        try:
+            if (value):
+                call = open("/proc/acpi/call", "w+")
+
+                call.write(str(value))
+                call.close()
+
+
+            call = open("/proc/acpi/call", "r")
+
+            result = call.readline()
+            call.close()
+
+            return result
+
+        except OSError:
+            raise Exception("couldn't open /proc/acpi/call, check if acpi_call loaded")
+        except IOError:
+            raise Exception("couldn't read from /proc/acpi/call, check permissions")
+
+    def get_state(self):
+        return self.acpi.get_state()
+
+    def get_percentage(self):
+        return self.acpi.get_percentage()
+
+    def get_time_running(self):
+        return self.acpi.get_time_running()
+
+    def get_time_charging(self):
+        return self.acpi.get_time_charging()
+
+    def get_start_threshold(self):
+        param = hex(self.bat)
+        result = self.acpi_call("\_SB.PCI0.LPC.EC.HKEY.BCTG " + param)
+        return int(result, 16) - (3 * 256)
+
+    def get_stop_threshold(self):
+        param = hex(self.bat)
+        result = self.acpi_call("\_SB.PCI0.LPC.EC.HKEY.BCSG " + param)
+        ret = int(result, 16) - (3 * 256)
+        if ret == 0:
+            ret = 100
+        return ret
+
+    def set_start_threshold(self, threshold):
+        param = hex(self.bat * 256 + threshold)
+        self.acpi_call("\_SB.PCI0.LPC.EC.HKEY.BCCS " + param)
+
+    def set_stop_threshold(self, threshold):
+        if threshold == 100:
+            threshold = 0
+        param = hex(self.bat * 256 + threshold)
+        self.acpi_call("\_SB.PCI0.LPC.EC.HKEY.BCSS " + param)
+
+    def start_charging(self):
+        cur = self.get_percentage()
+        self.set_start_threshold(cur + 1)
+
+    def start_cycle(self):
+        param = hex(self.bat)
+        self.acpi_call("\_SB.PCI0.LPC.EC.HKEY.BDSG " + param)
+
+#-------------------------------------------------------------------------------
+
+class ControlACPI():
+
+    def __init__(self):
+
+        self.name = "ACPI"
+
+        self.bat = "BAT" + str(bat - 1)
+        self.sysfs = "/sys/class/power_supply"
+
+        # catch all
+
+
+    def read_sysfs(self, path):
+        try:
+            node_path = os.path.join(self.sysfs, self.bat, path)
+            with open(node_path, "r") as node:
+                result = node.readline()
+            return result
+        except IOError:
+            raise Exception("error reading from", node_path)
+
+
+    def get_state(self):
+        """return values: Discharging, Charging, Unknown"""
+        try:
+            state = self.read_sysfs("status")
+        except Exception:
+            state = "none"
+
+        state = state.lower()
+
+        if state == "unknown":
+            state = "idle"
+
+        return state.rstrip()
+
+    def get_percentage(self):
+        percent = self.read_sysfs("capacity")
+        return int(percent)
+
+    def get_time_running(self):
+        current = int(self.read_sysfs("current_now"))
+        charge = int(self.read_sysfs("charge_now"))
+
+        if current == 0:
+            return 0
+
+        time = charge / current * 60
+
+        return int(time)
+
+    def get_time_charging(self):
+        full = int(self.read_sysfs("charge_full"))
+        now = int(self.read_sysfs("charge_now"))
+        cur = int(self.read_sysfs("current_now"))
+
+        missing = full - now
+        time = missing / cur * 60
+
+        return int(time)
+
+#-------------------------------------------------------------------------------
+
+class TrayIcon():
+
+    def __init__(self):
+        self.icon = None
+        self.menu = None
+
+        self.iconpath = "/usr/share/pixmaps/tp-battery-icons/"
+        self.iconname = "/usr/share/pixmaps/tp-battery-icon.svg"
+
         self.icon = Gtk.StatusIcon()
-        #self.icon.connect("activate", self.on_popup_menu)
         self.icon.connect("popup-menu", self.on_popup_menu)
 
     def get_menu(self):
@@ -170,54 +265,69 @@ class TrayIcon():
         state = ctrl.get_state()
 
         if state == "none":
-            title = bat + " not installed"
+            title = "Battery " + str(bat) + " not installed"
         else:
-            title = bat + " " + str(ctrl.get_percent()) + "% " + state
-
-        if state == "charging":
-            title += " " + ctrl.get_time_charging()
-        if state == "discharging":
-            title += " " + ctrl.get_time_running()
+            title = "Battery " + str(bat) + " at " + str(ctrl.get_percentage()) + "%"
 
         header = Gtk.MenuItem(title)
-        # TODO implement detail dialog
-        #header.connect("activate", )
+        header.connect("activate", self.show_detail_dialog)
         self.menu.append(header)
+
+        subtitle = ""
+        if state == "charging":
+            subtitle += state + " " + self.format_time(ctrl.get_time_charging())
+        if state == "discharging":
+            subtitle += state + " " + self.format_time(ctrl.get_time_running())
+
+        if subtitle:
+            subheader = Gtk.MenuItem(subtitle)
+            #subheader.connect("activate", )
+            self.menu.append(subheader)
 
         sep1 = Gtk.SeparatorMenuItem()
         self.menu.append(sep1)
 
         if state != "none":
 
-            start = Gtk.MenuItem("Start Threshold " + str(ctrl.get_threshold_start()) + "%")
-            start.connect("activate", self.show_input_dialog,
-                          "Start Threshold", "Set new <b>start</b> threshold:",
-                          self.set_threshold_start, iconpath + "empty.svg", str(ctrl.get_threshold_start()))
-            self.menu.append(start)
+            try:
+                start = Gtk.MenuItem("Start Threshold " + str(ctrl.get_start_threshold()) + "%")
+                start.connect("activate", self.show_input_dialog,
+                              "Start Threshold", "Set new <b>start</b> threshold:",
+                              self.set_threshold_start, self.iconpath + "empty.svg",
+                              str(ctrl.get_start_threshold()))
+                self.menu.append(start)
 
-            stop = Gtk.MenuItem("Stop Threshold " + str(ctrl.get_threshold_stop()) + "%")
-            stop.connect("activate", self.show_input_dialog,
-                         "Stop Threshold", "Set new <b>stop</b> threshold:",
-                         self.set_threshold_stop, iconpath + "full.svg", str(ctrl.get_threshold_stop()))
-            self.menu.append(stop)
 
-            sep2 = Gtk.SeparatorMenuItem()
-            self.menu.append(sep2)
+                stop = Gtk.MenuItem("Stop Threshold " + str(ctrl.get_stop_threshold()) + "%")
+                stop.connect("activate", self.show_input_dialog,
+                             "Stop Threshold", "Set new <b>stop</b> threshold:",
+                             self.set_threshold_stop, self.iconpath + "full.svg",
+                             str(ctrl.get_stop_threshold()))
+                self.menu.append(stop)
 
-            charge = Gtk.MenuItem("Start Charge")
-            charge.connect("activate", self.show_confirmation_dialog,
-                           "Confirm Charge", "Start charging?",
-                           ctrl.start_charge, iconpath + "charging-empty.svg")
-            self.menu.append(charge)
+                sep2 = Gtk.SeparatorMenuItem()
+                self.menu.append(sep2)
+            except AttributeError:
+                pass
 
-            cycle = Gtk.MenuItem("Start Cycle")
-            cycle.connect("activate", self.show_confirmation_dialog,
-                          "Confirm Cycle", "Start cycling?",
-                          ctrl.start_cycle, iconpath + "charging-full.svg")
-            self.menu.append(cycle)
+            try:
+                charge = Gtk.MenuItem("Start Charge")
+                charge.connect("activate", self.show_confirmation_dialog,
+                               "Confirm Charge", "Start charging?",
+                               ctrl.start_charging, self.iconpath + "charging-empty.svg")
+                self.menu.append(charge)
 
-            sep3 = Gtk.SeparatorMenuItem()
-            self.menu.append(sep3)
+
+                cycle = Gtk.MenuItem("Start Cycle")
+                cycle.connect("activate", self.show_confirmation_dialog,
+                              "Confirm Cycle", "Start cycling?",
+                              ctrl.start_cycle, self.iconpath + "charging-full.svg")
+                self.menu.append(cycle)
+
+                sep3 = Gtk.SeparatorMenuItem()
+                self.menu.append(sep3)
+            except AttributeError:
+                pass
 
         about = Gtk.MenuItem("About")
         about.connect("activate", self.show_about_dialog)
@@ -236,7 +346,7 @@ class TrayIcon():
         self.menu.popup(None, None, None, None, button, time)
 
     def update(self):
-        foo = iconpath
+        foo = self.iconpath
 
         state = ctrl.get_state()
 
@@ -247,8 +357,8 @@ class TrayIcon():
         if state == "charging":
             foo += "charging-"
 
-        cur = ctrl.get_percent()
-        if   cur > 80:
+        cur = ctrl.get_percentage()
+        if   cur > 60:
             foo += "full.svg"
         elif cur > 40:
             foo += "good.svg"
@@ -261,40 +371,42 @@ class TrayIcon():
 
 
         if state == "none":
-            title = bat + " not installed"
+            title = "Battery " + str(bat) + " not installed"
         else:
-            title = bat + " " + str(ctrl.get_percent()) + "% " + state
+            title = "Battery " + str(bat) + " at " + str(ctrl.get_percentage()) + "% " + state
 
+        # TODO
         if state == "charging":
-            title += " " + ctrl.get_time_charging()
+            title += " " + self.format_time(ctrl.get_time_charging())
         if state == "discharging":
-            title += " " + ctrl.get_time_running()
+            title += " " + self.format_time(ctrl.get_time_running())
 
         icon.icon.set_tooltip_text(title)
 
     def set_threshold_start(self, widget):
         try:
             thresh = int(widget.get_text())
-            if 0 <= thresh <= 100:
-                ctrl.set_threshold_start(thresh)
+            if 1 <= thresh <= 100:
+                ctrl.set_start_threshold(thresh)
         except ValueError:
-             print("Invalid value in dialog!") #TODO: use message dialog
+            # TODO message dialog
+            print("Invalid value in dialog!")
 
     def set_threshold_stop(self, widget):
         try:
             thresh = int(widget.get_text())
-            if 0 <= thresh <= 100:
-                ctrl.set_threshold_stop(thresh)
+            if 1 <= thresh <= 100:
+                ctrl.set_stop_threshold(thresh)
         except ValueError:
-             print("Invalid value in dialog!") #TODO: use message dialog
+            # TODO message dialog
+            print("Invalid value in dialog!")
 
     def respond(self, entry, dialog, response):
         dialog.response(response)
 
     def show_input_dialog(self, widget, title, question, function, imagename, answer=""):
         dialog = Gtk.Dialog(title, None, 0, (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OK, Gtk.ResponseType.OK))
-        #dialog = Gtk.Dialog(title, None, 0)
-        dialog.set_icon_from_file(iconname)
+        dialog.set_icon_from_file(self.iconname)
 
         hbox = Gtk.HBox()
         dialog.vbox.pack_start(hbox, True, True, 0)
@@ -329,7 +441,7 @@ class TrayIcon():
 
     def show_confirmation_dialog(self, widget, title, question, function, imagename):
         dialog = Gtk.Dialog(title, None, 0, (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OK, Gtk.ResponseType.OK))
-        dialog.set_icon_from_file(iconname)
+        dialog.set_icon_from_file(self.iconname)
 
         hbox = Gtk.HBox()
         dialog.vbox.pack_start(hbox, True, True, 0)
@@ -354,21 +466,34 @@ class TrayIcon():
 
         dialog.destroy()
 
+    def show_detail_dialog(self, widget):
+        print("hui")
+
     def show_about_dialog(self, widget):
         about_dialog = Gtk.AboutDialog()
 
-        about_dialog.set_program_name("TP Battery Icon")
-        about_dialog.set_version("0.1")
-        about_dialog.set_comments("A simple yet useful tray icon, using tp_smapi.")
+        about_dialog.set_program_name("ThinkPad Battery Icon")
+        about_dialog.set_version("0.2")
+        about_dialog.set_comments("A simple yet powerful tray icon, using: " + ctrl.name)
         about_dialog.set_copyright("Copyright © 2012 Thomas Krug")
         about_dialog.set_website("https://github.com/phragment/tp-battery-icon")
         about_dialog.set_website_label("github.com/phragment/tp-battery-icon")
-        about_dialog.set_icon_from_file(iconname)
+        about_dialog.set_icon_from_file(self.iconname)
 
-        about_dialog.set_logo(GdkPixbuf.Pixbuf.new_from_file_at_size(iconname, 200, 200))
+        about_dialog.set_logo(GdkPixbuf.Pixbuf.new_from_file_at_size(self.iconname, 200, 200))
 
         about_dialog.run()
         about_dialog.destroy()
+
+    def format_time(self, time):
+        try:
+            hh = str(time / 60).split('.')[0]
+            mm = str(time % 60).split('.')[0].zfill(2)
+            return hh + ":" + mm
+        except ValueError:
+            return "--:--"
+
+#-------------------------------------------------------------------------------
 
 def timer():
     icon.update()
@@ -383,19 +508,34 @@ if __name__ == "__main__":
     global acpi
 
     parser = optparse.OptionParser()
-    parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False, help="print debug output")
-    parser.add_option("-b", "--battery", action="store", dest="bat", default="BAT0", help="set the battery to observe.")
-    parser.add_option("-a", "--acpi", action="store", dest="acpi", default=False, help="set use of acpi over smapi for sandy/ivybridge TP.")
+    parser.add_option("-b", "--battery", action="store",
+                      dest="bat", default="1",
+                      help="set which battery to observe.")
     (options, args) = parser.parse_args()
 
-    debug = options.debug
-    bat = options.bat
-    acpi = options.acpi
+    bat = int(options.bat)
+
+    if bat < 1 or bat > 2:
+        print("Choose Battery 1 or 2.")
+        sys.exit(1)
 
     try:
         loop = GObject.MainLoop(None, False)
 
-        ctrl = Control()
+        ctrls = [ControlTPacpi, ControlTPsmapi, ControlACPI]
+
+        ctrl = None
+        for test_ctrl in ctrls:
+            if not ctrl:
+                try:
+                    ctrl = test_ctrl()
+                except Exception:
+                    ctrl = None
+
+        if not ctrl:
+            print("no module found")
+            sys.exit(1)
+
         icon = TrayIcon()
 
         timer()
@@ -404,3 +544,4 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
         loop.quit()
+
