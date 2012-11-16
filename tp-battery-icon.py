@@ -221,7 +221,10 @@ class ControlACPI():
         return state.rstrip()
 
     def get_percentage(self):
-        percent = self.read_sysfs("capacity")
+        try:
+            percent = self.read_sysfs("capacity")
+        except Exception:
+            percent = int(self.read_sysfs("energy_full")) / int(self.read_sysfs("energy_now")) * 100.0
         return int(percent)
 
     def get_time_running(self):
