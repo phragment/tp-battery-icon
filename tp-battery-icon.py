@@ -228,8 +228,15 @@ class ControlACPI():
         return int(percent)
 
     def get_time_running(self):
-        current = int(self.read_sysfs("power_now"))
-        charge = int(self.read_sysfs("energy_now"))
+        try:
+            current = int(self.read_sysfs("power_now"))
+        except Exception:
+            current = int(self.read_sysfs("current_now"))
+
+        try:
+            charge = int(self.read_sysfs("energy_now"))
+        except Exception:
+            charge = int(self.read_sysfs("charge_now"))
 
         if current == 0:
             return 0
@@ -239,12 +246,26 @@ class ControlACPI():
         return int(time)
 
     def get_time_charging(self):
-        full = int(self.read_sysfs("energy_full"))
-        now = int(self.read_sysfs("energy_now"))
-        cur = int(self.read_sysfs("power_now"))
+        try:
+            full = int(self.read_sysfs("energy_full"))
+        except Exception:
+            full = int(self.read_sysfs("charge_full"))
+
+        try:
+            now = int(self.read_sysfs("energy_now"))
+        except Exception:
+            now = int(self.read_sysfs("charge_now"))
+
+        try:
+            current = int(self.read_sysfs("power_now"))
+        except Exception:
+            current = int(self.read_sysfs("current_now"))
+
+        if current == 0:
+            return 0
 
         missing = full - now
-        time = missing / cur * 60
+        time = missing / current * 60
 
         return int(time)
 
