@@ -23,7 +23,7 @@ import subprocess
 
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GObject, GdkPixbuf, GLib
+from gi.repository import Gtk, GObject, GdkPixbuf
 
 #-------------------------------------------------------------------------------
 
@@ -362,7 +362,7 @@ class TrayIcon():
         self.menu.append(quit)
 
     def quit(self, widget):
-        loop.quit()
+        Gtk.main_quit()
 
     def on_popup_menu(self, icon, button=3, time=0):
         self.get_menu()
@@ -524,7 +524,6 @@ def timer():
     GObject.timeout_add_seconds(10, timer)
 
 if __name__ == "__main__":
-    global loop
     global icon
     global ctrl
     global debug
@@ -544,8 +543,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        loop = GLib.MainLoop()
-
         ctrls = [ControlTPacpi, ControlTPsmapi, ControlACPI]
 
         ctrl = None
@@ -564,8 +561,8 @@ if __name__ == "__main__":
 
         timer()
 
-        loop.run()
+        Gtk.main()
 
     except KeyboardInterrupt:
-        loop.quit()
+        Gtk.main_quit()
 
