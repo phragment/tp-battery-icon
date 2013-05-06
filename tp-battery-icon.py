@@ -544,7 +544,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        loop = GObject.MainLoop(None, False)
+        loop = GObject.MainLoop(None)
 
         ctrls = [ControlTPacpi, ControlTPsmapi, ControlACPI]
 
