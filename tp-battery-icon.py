@@ -23,7 +23,7 @@ import subprocess
 
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GObject, GdkPixbuf
+from gi.repository import Gtk, GObject, GdkPixbuf, GLib
 
 #-------------------------------------------------------------------------------
 
@@ -544,7 +544,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     try:
-        loop = GObject.MainLoop(None, False)
+        loop = GLib.MainLoop()
 
         ctrls = [ControlTPacpi, ControlTPsmapi, ControlACPI]
 
