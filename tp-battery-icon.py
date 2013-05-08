@@ -20,6 +20,7 @@ import sys
 import optparse
 import os
 import subprocess
+import signal
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -523,6 +524,9 @@ def timer():
     icon.update()
     GObject.timeout_add_seconds(10, timer)
 
+def signal_handler(signum, frame):
+    Gtk.main_quit()
+
 if __name__ == "__main__":
     global icon
     global ctrl
@@ -542,27 +546,27 @@ if __name__ == "__main__":
         print("Choose Battery 1 or 2.")
         sys.exit(1)
 
-    try:
-        ctrls = [ControlTPacpi, ControlTPsmapi, ControlACPI]
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
 
-        ctrl = None
-        for test_ctrl in ctrls:
-            if not ctrl:
-                try:
-                    ctrl = test_ctrl()
-                except Exception:
-                    ctrl = None
+    ctrls = [ControlTPacpi, ControlTPsmapi, ControlACPI]
 
+    ctrl = None
+    for test_ctrl in ctrls:
         if not ctrl:
-            print("no module found")
-            sys.exit(1)
+            try:
+                ctrl = test_ctrl()
+            except Exception:
+                ctrl = None
 
-        icon = TrayIcon()
+    if not ctrl:
+        print("no module found")
+        sys.exit(1)
 
-        timer()
+    icon = TrayIcon()
 
-        Gtk.main()
+    timer()
 
-    except KeyboardInterrupt:
-        Gtk.main_quit()
+    Gtk.main()
 
