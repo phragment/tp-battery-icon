@@ -77,7 +77,11 @@ class ControlTPsmapi():
 
     def get_time_charging(self):
         time = self.read_sysfs("remaining_charging_time")
-        return int(time)
+        try:
+            ret = int(time)
+        except ValueError:
+            ret = 0
+        return ret
 
     def get_start_threshold(self):
         thresh = self.read_sysfs("start_charge_thresh")
@@ -363,7 +367,7 @@ class TrayIcon():
         self.menu.append(quit)
 
     def quit(self, widget):
-        Gtk.main_quit()
+        quit()
 
     def on_popup_menu(self, icon, button=3, time=0):
         self.get_menu()
@@ -400,7 +404,6 @@ class TrayIcon():
         else:
             title = "Battery " + str(bat) + " at " + str(ctrl.get_percentage()) + "% " + state
 
-        # TODO
         if state == "charging":
             title += " " + self.format_time(ctrl.get_time_charging())
         if state == "discharging":
@@ -414,7 +417,6 @@ class TrayIcon():
             if 1 <= thresh <= 100:
                 ctrl.set_start_threshold(thresh)
         except ValueError:
-            # TODO message dialog
             print("Invalid value in dialog!")
 
     def set_threshold_stop(self, widget):
@@ -423,7 +425,6 @@ class TrayIcon():
             if 1 <= thresh <= 100:
                 ctrl.set_stop_threshold(thresh)
         except ValueError:
-            # TODO message dialog
             print("Invalid value in dialog!")
 
     def respond(self, entry, dialog, response):
@@ -492,7 +493,7 @@ class TrayIcon():
         dialog.destroy()
 
     def show_detail_dialog(self, widget):
-        print("hui")
+        print("This will be implemented some time...")
 
     def show_about_dialog(self, widget):
         about_dialog = Gtk.AboutDialog()
@@ -516,7 +517,7 @@ class TrayIcon():
             mm = str(time % 60).split('.')[0].zfill(2)
             return hh + ":" + mm
         except ValueError:
-            return "--:--"
+            return "0:00"
 
 #-------------------------------------------------------------------------------
 
@@ -526,6 +527,9 @@ def timer():
 
 def signal_handler(signum, frame):
     Gtk.main_quit()
+
+def quit():
+    mainloop.quit()
 
 if __name__ == "__main__":
     global icon
@@ -547,8 +551,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
 
     ctrls = [ControlTPacpi, ControlTPsmapi, ControlACPI]
 
@@ -564,9 +566,15 @@ if __name__ == "__main__":
         print("no module found")
         sys.exit(1)
 
+    global mainloop
+    mainloop = GObject.MainLoop()
+
     icon = TrayIcon()
 
     timer()
 
-    Gtk.main()
+    try:
+        mainloop.run()
+    except KeyboardInterrupt:
+        quit()
 
